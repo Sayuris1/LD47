@@ -1,0 +1,65 @@
+local lib = require "modules.lib"
+
+colors = { green = 44, red = 52, blue = 60, purple = 68}
+
+local playerUrl = "/player#player"
+
+function init(self)
+	go.property("color", 1)
+
+	gates[#gates + 1] = msg.url()
+
+	if self.color == colors.green then
+		sprite.play_flipbook("#sprite", lib.hashed("doorGreen"))
+	elseif self.color == colors.red then
+		sprite.play_flipbook("#sprite", lib.hashed("doorRed"))
+	elseif self.color == colors.blue then
+		sprite.play_flipbook("#sprite", lib.hashed("doorBlue"))
+	elseif self.color == colors.purple then
+		sprite.play_flipbook("#sprite", lib.hashed("doorPurple"))
+	end
+
+	self.open = false
+
+end
+
+function on_message(self, message_id, message, sender)
+	local item = go.get(playerUrl, "item")
+	if message_id == lib.hashed("take") then
+		if item == colors.green and self.color == colors.green then
+			sprite.play_flipbook("#sprite", lib.hashed("doorOpenGreen"))
+			self.open = true
+		elseif item == colors.red and self.color == colors.red then
+			sprite.play_flipbook("#sprite", lib.hashed("doorOpenRed"))
+			self.open = true
+		elseif item == colors.blue and self.color == colors.blue then
+			sprite.play_flipbook("#sprite", lib.hashed("doorOpenBlue"))
+			self.open = true
+		elseif item == colors.purple and self.color == colors.purple then
+			sprite.play_flipbook("#sprite", lib.hashed("doorOpenPurple"))
+			self.open = true
+		elseif self.open then
+			if self.color == colors.green then
+				sprite.play_flipbook("#sprite", lib.hashed("doorCloseGreen"))
+			elseif self.color == colors.red then
+				sprite.play_flipbook("#sprite", lib.hashed("doorCloseRed"))
+			elseif self.color == colors.blue then
+				sprite.play_flipbook("#sprite", lib.hashed("doorCloseBlue"))
+			elseif self.color == colors.purple then
+				sprite.play_flipbook("#sprite", lib.hashed("doorClosePurple"))
+			end
+			self.open = false
+		end
+
+	elseif message_id == lib.hashed("animation_done") then
+		if item ~= colors.green and self.color == colors.green then
+			sprite.play_flipbook("#sprite", lib.hashed("doorGreen"))
+		elseif item ~= colors.red and self.color == colors.red then
+			sprite.play_flipbook("#sprite", lib.hashed("doorRed"))
+		elseif item ~= colors.blue and self.color == colors.blue then
+			sprite.play_flipbook("#sprite", lib.hashed("doorBlue"))
+		elseif item ~= colors.purple and self.color == colors.purple then
+			sprite.play_flipbook("#sprite", lib.hashed("doorPurple"))
+		end
+	end
+end

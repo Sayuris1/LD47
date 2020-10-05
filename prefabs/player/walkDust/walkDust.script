@@ -1,0 +1,13 @@
+local lib = require "modules.lib"
+
+-- I'm a lazy fuck
+
+function init(self)
+	sprite.play_flipbook("#sprite", lib.hashed("walkDust"), function () go.delete(); end)
+	go.property("speed", vmath.vector3(0, 0, 0))
+end
+
+function update(self, dt)
+	local pos = go.get_position()
+	go.set_position(pos + self.speed)
+end

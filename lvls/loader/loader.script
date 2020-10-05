@@ -1,0 +1,35 @@
+local lib = require "modules.lib"
+
+function init(self)
+	self.lvl = 1
+	self.lvlUrl = msg.url("loader", "/lvl" .. self.lvl, "collectionproxy")
+
+	msg.post(self.lvlUrl, "load")
+	msg.post(self.lvlUrl.path, "acquire_input_focus")
+
+	sound.play("/sounds#sound5")
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == lib.hashed("proxy_loaded") then
+		msg.post(sender, "init")
+		msg.post(sender, "enable")
+	elseif message_id == lib.hashed("restart") then
+		msg.post(self.lvlUrl, "disable")
+        msg.post(self.lvlUrl, "final")
+		msg.post(self.lvlUrl, "unload")
+	elseif message_id == lib.hashed("proxy_unloaded") then
+		msg.post(self.lvlUrl, "load")
+	elseif message_id == lib.hashed("next") then
+		msg.post(self.lvlUrl.path, "release_input_focus")
+		msg.post(self.lvlUrl, "disable")
+        msg.post(self.lvlUrl, "final")
+		msg.post(self.lvlUrl, "unload")
+
+		self.lvl = self.lvl + 1
+		self.lvlUrl = msg.url("loader", "/lvl" .. self.lvl, "collectionproxy")
+
+		msg.post(self.lvlUrl, "load")
+		msg.post(self.lvlUrl.path, "acquire_input_focus")
+	end
+end

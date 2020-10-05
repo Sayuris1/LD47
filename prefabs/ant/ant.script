@@ -1,0 +1,24 @@
+local lib = require "modules.lib"
+
+function init(self)
+	go.property("speed", 10)
+
+	ants[#ants + 1] = msg.url()
+
+	msg.post(".", "disable")
+
+	self.pos = go.get_position()
+end
+
+function update(self, dt)
+	local pos = go.get_position()
+	go.set_position(pos + vmath.vector3(-self.speed, 0, 0))
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == lib.hashed("reset") then
+		msg.post(".", "disable")
+	elseif message_id == lib.hashed("enable") then
+		go.set_position(self.pos)
+	end
+end

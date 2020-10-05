@@ -1,0 +1,278 @@
+local lib = require "modules.lib"
+local dta = require "dta.dta"
+
+local animation_groups = {
+    [44] = { sequence = { 44, 45, 46, 47, 48, 49, 50, 51 }, trigger = false, frequency = 8 },
+    [52] = { sequence = { 52, 53, 54, 55, 56, 57, 58, 59 }, trigger = false, frequency = 8 },
+    [60] = { sequence = { 60, 61, 62, 63, 64, 65, 66, 67 }, trigger = false, frequency = 8 },
+	[68] = { sequence = { 68, 69, 70, 71, 72, 73, 74, 75 }, trigger = false, frequency = 8 },
+	[80] = { sequence = { 80, 81, 82, 83 }, trigger = false, frequency = 4},
+}
+
+local function FindTurners(self)
+	for i = -9, 10 do
+		for n = 9, -8, -1 do
+			local tile = tilemap.get_tile(self.tileUrl, "layer1", i, n)
+			if tile == 78 then
+				turners[#turners + 1] = { x = i, y = n }
+			end
+		end
+	end
+end
+
+local function Move(self)
+	if self.canMove then
+		self.spriteX = self.x
+		self.spriteY = self.y
+		self.spritePos = vmath.vector3(self.pos)
+		go.set_position(self.spritePos, self.spriteUrl)
+	end
+end
+
+local function Turner(self)
+	self.turner = self.turner + 1
+	local wallNo = self.turner - self.turner_wait
+	if self.turner > self.turner_wait and wallNo <= #turners then
+		tilemap.set_tile(self.tileUrl, "layer1", turners[wallNo].x, turners[wallNo].y, 79)
+	end
+end
+
+local function TurnerReset(self)
+	self.turner = 0
+	for i,v in ipairs(turners) do
+		tilemap.set_tile(self.tileUrl, "layer1", v.x, v.y, 78)
+	end
+end
+
+local function Reset(self)
+	msg.post("/rewind", "disable")
+
+	self.x = self.start_x
+	self.y = self.start_y
+	self.spriteX = self.start_y
+	self.spriteY = self.start_y
+	self.pos = vmath.vector3(self.startPos)
+	TurnerReset(self)
+
+	go.set_position(self.pos)
+	timer.delay(0.1, false, Move)
+
+	for i,v in ipairs(ants) do
+		msg.post(v.path, "reset")
+	end
+	self.resetTimer = true
+end
+
+local function Use(self)
+	dta.final()
+
+	local tileNo = tilemap.get_tile(self.tileUrl, "layer1", self.x, self.y)
+	self.item, tileNo = tileNo, self.item
+	tilemap.set_tile(self.tileUrl, "layer1", self.x, self.y, tileNo)
+	-- Take Item -------------------------------------------------
+
+	if self.item == 44 or self.item == 52 or self.item == 60 or self.item == 68 then
+		local url = msg.url("loader", "/sounds", "sound" .. (self.keySoundNo + 7))
+		sound.play(url)
+		self.keySoundNo = (self.keySoundNo + 1) % 2
+	end
+
+	for i,v in ipairs(gates) do
+		msg.post(v, "take")
+	end
+
+	dta.init(animation_groups, self.tileUrl, {"layer1"})
+end
+
+function init(self)
+	gates = {}
+
+	turners = {}
+
+	ants = {}
+
+	ends = {}
+
+	msg.post(".", "acquire_input_focus")
+
+
+	go.property("item", 0)
+	go.property("start_x", 0)
+	go.property("start_y", 0)
+	go.property("dust_speed", 0.8)
+	self.x = self.start_x
+	self.y = self.start_y
+	self.spriteX = self.start_x
+	self.spriteY = self.start_y
+	-- Tile ------------------------------------
+
+	self.tileUrl = msg.url("/map#lvl")
+	self.spriteUrl = msg.url("/playerSprite#sprite")
+	self.factoryUrl = msg.url("/playerSprite#factory")
+	-- Url -------------------------------------
+
+	self.startPos = go.get_position()
+	self.pos = go.get_position()
+	self.spritePos = go.get_position(self.spriteUrl)
+	-- Pos -------------------------------------
+
+	self.canMove = true
+	self.restart = false
+	self.resetTimer = true
+	-- BugFix ----------------------------------
+
+	dta.final()
+	dta.init(animation_groups, self.tileUrl, {"layer1"})
+	dta.toggle_message_passing(true, msg.url())
+	-- DTA ----------------------------------------------
+
+	FindTurners(self)
+	go.property("turner_wait", 0)
+	self.turner = 0
+	-- Turner -------------------------------------------
+
+	self.anim = 1
+	-- Anim ---------------------------------------------
+
+	self.soundNo = 0
+	self.keySoundNo = 0
+	-- Sound --------------------------------------------
+
+	msg.post("/rewind", "disable")
+	msg.post("/forward", "disable")
+	-- Disable ------------------------------------------
+end
+
+function final(self)
+	msg.post(".", "release_input_focus")
+	dta.final()
+end
+
+function update(self, dt)
+	self.canMove = true
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == lib.hashed("trigger_response") and message.enter then
+		if message.other_group == lib.hashed("wall") then
+			msg.post("camera", "shake", { intensity = 0.01, duration = 0.1, direction = "horizontal" })
+			sound.play("loader:/sounds#sound9")
+
+			self.x = self.spriteX
+			self.y = self.spriteY
+			self.pos = vmath.vector3(self.spritePos)
+			go.set_position(self.pos)
+			self.canMove = false
+		elseif message.other_group == lib.hashed("gate") then
+			local url = msg.url(sender.socket, message.other_id, "gate")
+			local color = go.get(url, "color")
+			if self.item ~= color then
+				msg.post("camera", "shake", { intensity = 0.01, duration = 0.1, direction = "horizontal" })
+				self.x = self.spriteX
+				self.y = self.spriteY
+				self.pos = vmath.vector3(self.spritePos)
+				go.set_position(self.pos)
+				self.canMove = false
+			end
+		elseif message.other_group == lib.hashed("end") then
+			for i,v in ipairs(ends) do
+				msg.post(v.path, "enable")
+			end
+
+			msg.post("/forward", "enable");
+			timer.delay(2, false, function () msg.post("loader:/script#loader", "next"); end)
+			sound.play("loader:/sounds#sound6")
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if action.pressed or action.repeated then
+		if action_id == lib.hashed("left") then
+			self.x = self.x - 1
+			self.pos.x = self.pos.x - 48
+			factory.create(self.factoryUrl, nil, nil, { speed = vmath.vector3(self.dust_speed, 0, 0) }, vmath.vector3(3, 3, 3))
+
+			Turner(self)
+
+			self.anim = ((self.anim + 1) % 4)
+			sprite.play_flipbook("/playerSprite#sprite", "kasetYurumeSol" .. self.anim )
+
+			local soundUrl = msg.url("loader", "/sounds", "sound" .. self.soundNo)
+			sound.play(soundUrl)
+			self.soundNo = (self.soundNo + 1) % 4
+		elseif action_id == lib.hashed("right") then
+			self.x = self.x + 1
+			self.pos.x = self.pos.x + 48
+			factory.create(self.factoryUrl, nil, nil, { speed = vmath.vector3(-self.dust_speed, 0, 0) }, vmath.vector3(3, 3, 3))
+
+			Turner(self)
+
+			self.anim = ((self.anim + 1) % 4)
+			sprite.play_flipbook("/playerSprite#sprite", "kasetYurumeSag" .. self.anim )
+
+			local soundUrl = msg.url("loader", "/sounds", "sound" .. self.soundNo)
+			sound.play(soundUrl)
+			self.soundNo = (self.soundNo + 1) % 4
+		elseif action_id == lib.hashed("down") then
+			self.y = self.y - 1
+			self.pos.y = self.pos.y - 48
+			factory.create(self.factoryUrl, nil, nil, { speed = vmath.vector3(0, self.dust_speed, 0) }, vmath.vector3(3, 3, 3))
+
+			Turner(self)
+
+			self.anim = ((self.anim + 1) % 4)
+			sprite.play_flipbook("/playerSprite#sprite", "kasetYurumeAlt" .. self.anim )
+
+			local soundUrl = msg.url("loader", "/sounds", "sound" .. self.soundNo)
+			sound.play(soundUrl)
+			self.soundNo = (self.soundNo + 1) % 4
+		elseif action_id == lib.hashed("up") then
+			self.y = self.y + 1
+			self.pos.y = self.pos.y + 48
+			factory.create(self.factoryUrl, nil, nil, { speed = vmath.vector3(0, -self.dust_speed, 0) }, vmath.vector3(3, 3, 3))
+
+			Turner(self)
+
+			self.anim = ((self.anim + 1) % 4)
+			sprite.play_flipbook("/playerSprite#sprite", "kasetYurumeYukarı" .. self.anim )
+
+			local soundUrl = msg.url("loader", "/sounds", "sound" .. self.soundNo)
+			sound.play(soundUrl)
+			self.soundNo = (self.soundNo + 1) % 4
+			-- Move ---------------------------------------
+		elseif action_id == lib.hashed("reset") then
+			if self.resetTimer then
+				for i,v in ipairs(ants) do
+					msg.post(v.path, "enable")
+				end
+
+				msg.post("/rewind", "enable")
+				sound.play("loader:/sounds#sound4")
+				self.resetTimer = false
+				timer.delay(0.5, false, Reset)
+			end
+			-- Reset ---------------------------------------
+
+			if self.restart then
+				msg.post("loader:/script#loader", "restart")
+				self.restart = false
+			end
+			-- ReStart -------------------------------------
+			self.restart = true
+			timer.delay(1, false, function() self.restart = false end)
+		elseif action_id == lib.hashed("use") then
+			Use(self)
+			-- Use ---------------------------------------
+		end
+
+		go.set_position(self.pos)
+		timer.delay(0.1, false, Move)
+	end
+end
+
+function on_reload(self)
+	-- Add reload-handling code here
+	-- Learn more: https://defold.com/manuals/hot-reload/
+	-- Remove this function if not needed
+end
